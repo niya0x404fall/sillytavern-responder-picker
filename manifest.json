@@ -1,0 +1,10 @@
+{
+  "display_name": "Выбор отвечающего",
+  "name": "QuickReplyPicker",
+  "description": "Выбор персонажа для ответа в групповом чате.",
+  "author": "Niya custom",
+  "version": "0.3.12",
+  "js": "index.js",
+  "css": "style.css",
+  "requires": []
+}
