@@ -12,7 +12,7 @@
 }
 #qrp-shell { position:relative; z-index:10001; display:flex; flex-direction:column; align-items:flex-end; width:100%; margin-bottom:4px; }
 #qrp-shell:empty { display:none; margin:0; }
-#qrp-panel { position:relative; z-index:1; min-width:220px; width:auto; max-width:min(300px,90vw); max-height:350px; overflow-y:auto; padding:10px; margin-bottom:6px; border:1px solid var(--SmartThemeBorderColor,#796c89); border-radius:14px; background:var(--SmartThemeBlurTintColor,#30283c); color:var(--SmartThemeBodyColor,#fff); box-shadow:0 -8px 32px #0009; backdrop-filter:blur(16px); box-sizing:border-box; opacity:1; }
+#qrp-panel { position:fixed!important; z-index:2147483000!important; min-width:220px; width:auto; max-width:min(300px,90vw); max-height:min(350px,calc(100dvh - 16px)); overflow-y:auto; padding:10px; margin-bottom:6px; border:1px solid var(--SmartThemeBorderColor,#796c89); border-radius:14px; background:var(--SmartThemeBlurTintColor,#30283c); color:var(--SmartThemeBodyColor,#fff); box-shadow:0 -8px 32px #0009; backdrop-filter:blur(16px); box-sizing:border-box; opacity:1; }
 #qrp-panel * { box-sizing:border-box; }
 #qrp-panel button { cursor:pointer; color:inherit; border:0; background:transparent; flex:none; touch-action:manipulation; }
 .qrp-head { padding:0 4px 8px; font-size:11px; font-weight:600; opacity:.85; }
@@ -37,3 +37,41 @@
 .qrp-launcher-avatars img { width:28px; height:28px; margin-left:-8px; border:2px solid var(--SmartThemeBlurTintColor,#30283c); border-radius:50%; object-fit:cover; }
 .qrp-launcher-avatars img:first-child { margin-left:0; }
 .qrp-launcher-arrow { display:grid; place-items:center; width:32px; height:32px; flex:none; font-size:14px; }
+
+/* 0.3.13 beta: protect the dropdown and launcher from aggressive theme-wide CSS. */
+#qrp-panel {
+    margin:0!important;
+    box-shadow:0 10px 30px rgba(0,0,0,.23)!important;
+    border-radius:14px!important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+}
+#qrp-shell { flex-shrink:0; min-height:0; isolation:isolate; }
+#qrp-launcher {
+    display:flex!important;
+    box-sizing:border-box;
+    border-radius:24px!important;
+    box-shadow:0 3px 12px rgba(0,0,0,.16)!important;
+    flex-shrink:0;
+}
+#qrp-panel .qrp-row { border-radius:10px!important; }
+#qrp-panel .qrp-avatar, #qrp-launcher .qrp-launcher-avatars img { border-radius:50%!important; }
+#qrp-panel[data-style="bubbles"] .qrp-play,
+#qrp-panel[data-style="bubbles"] .qrp-eye { border-radius:50%!important; }
+#qrp-panel .qrp-play {
+    color:var(--SmartThemeUnderlineColor,#78d6a0)!important;
+}
+#qrp-panel[data-style="bubbles"] .qrp-play,
+#qrp-panel[data-style="bubbles"] .qrp-eye {
+    background:color-mix(in srgb,var(--SmartThemeBodyColor,#fff) 10%,var(--SmartThemeBlurTintColor,#30283c))!important;
+    border:1px solid var(--SmartThemeBorderColor,#796c89)!important;
+}
+#qrp-panel .qrp-play, #qrp-panel .qrp-eye {
+    min-width:36px;
+    min-height:36px;
+    opacity:1!important;
+    visibility:visible!important;
+}
+#qrp-settings-dialog { box-shadow:0 12px 40px #0007!important; }
+#qrp-settings-dialog select { border-radius:8px!important; }
+#qrp-settings-dialog .qrp-settings-close { border-radius:50%!important; }

@@ -1,9 +1,9 @@
 {
-  "display_name": "Выбор отвечающего",
-  "name": "QuickReplyPicker",
-  "description": "Выбор персонажа для ответа в групповом чате.",
+  "display_name": "Выбор отвечающего — Beta",
+  "name": "QuickReplyPickerBeta",
+  "description": "Бета: совместимость кнопки выбора отвечающего с темами и мобильной вёрсткой.",
   "author": "Niya custom",
-  "version": "0.3.12",
+  "version": "0.3.13-beta.1",
   "js": "index.js",
   "css": "style.css",
   "requires": []
