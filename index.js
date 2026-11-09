@@ -26,8 +26,129 @@ function setLauncherExpanded(expanded) {
     if (icon) icon.className = `fa-solid fa-chevron-${expanded ? 'down' : 'up'}`;
 }
 
+// Put the dropdown in <body> rather than inside #form_sheld: custom themes can
+// clip the composer, create stacking contexts, or reposition Quick Replies.
+function positionPanel() {
+    const panel = document.querySelector('#qrp-panel');
+    if (!panel) return;
+
+    const anchor = (showLauncher && document.querySelector('#qrp-launcher'))
+        || document.querySelector('#send_form')
+        || document.querySelector('#send_but');
+    if (!anchor) { close(); return; }
+
+    const view = window.visualViewport;
+    const viewportLeft = view?.offsetLeft ?? 0;
+    const viewportTop = view?.offsetTop ?? 0;
+    const viewportWidth = view?.width ?? window.innerWidth;
+    const viewportHeight = view?.height ?? window.innerHeight;
+    const gap = 8;
+    const margin = 8;
+    const anchorRect = anchor.getBoundingClientRect();
+
+    // Limit the height to the *visible* viewport, including while the keyboard is open.
+    panel.style.setProperty('max-height', `${Math.max(80, viewportHeight - margin * 2)}px`, 'important');
+    const panelRect = panel.getBoundingClientRect();
+    const panelWidth = panelRect.width;
+    const panelHeight = panelRect.height;
+    const rightEdge = viewportLeft + viewportWidth - margin;
+    const bottomEdge = viewportTop + viewportHeight - margin;
+
+    const left = Math.max(viewportLeft + margin,
+        Math.min(anchorRect.right - panelWidth, rightEdge - panelWidth));
+    const roomAbove = anchorRect.top - (viewportTop + margin);
+    const roomBelow = bottomEdge - anchorRect.bottom;
+    const top = roomAbove >= panelHeight + gap || roomAbove >= roomBelow
+        ? Math.max(viewportTop + margin, anchorRect.top - panelHeight - gap)
+        : Math.min(bottomEdge - panelHeight, anchorRect.bottom + gap);
+
+    panel.style.setProperty('left', `${Math.round(left)}px`, 'important');
+    panel.style.setProperty('top', `${Math.round(top)}px`, 'important');
+    panel.style.visibility = 'visible';
+}
+
+let panelFrame = 0;
+function schedulePanelPosition() {
+    if (!document.querySelector('#qrp-panel') || panelFrame) return;
+    panelFrame = requestAnimationFrame(() => {
+        panelFrame = 0;
+        positionPanel();
+    });
+}
+
+// White Dome positions Quick Replies absolutely ABOVE the input form.
+// Because our launcher is a sibling immediately before that form, their visual
+// rectangles can overlap even though neither component is broken. Measure the
+// *actual* Quick Replies bar and lift only the launcher when needed. Unlike a
+// fixed 60px CSS offset, this works with wrapped quick replies and font scaling.
+let launcherFrame = 0;
+let launcherLift = 0;
+const layoutObserved = new WeakSet();
+const launcherResizeObserver = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => scheduleLauncherPosition())
+    : null;
+
+function observeLauncherLayout() {
+    if (!launcherResizeObserver) return;
+    for (const element of [
+        document.querySelector('#qrp-launcher'),
+        document.querySelector('#qr--bar'),
+        document.querySelector('#send_form'),
+    ]) {
+        if (element && !layoutObserved.has(element)) {
+            layoutObserved.add(element);
+            launcherResizeObserver.observe(element);
+        }
+    }
+}
+
+function positionLauncher() {
+    const shell = document.querySelector('#qrp-shell');
+    const launcher = document.querySelector('#qrp-launcher');
+    if (!shell || !launcher || !showLauncher) {
+        launcherLift = 0;
+        return;
+    }
+    const quickBar = document.querySelector('#qr--bar');
+    let lift = 0;
+    if (quickBar && quickBar.getClientRects().length > 0) {
+        const quickRect = quickBar.getBoundingClientRect();
+        const buttonRect = launcher.getBoundingClientRect();
+        const gap = 9;
+        // Undo our previous transform in the measurements. Without this,
+        // recalculating the layout would alternate between two positions.
+        const baselineTop = buttonRect.top + launcherLift;
+        const baselineBottom = buttonRect.bottom + launcherLift;
+        const horizontalOverlap = buttonRect.left < quickRect.right && buttonRect.right > quickRect.left;
+        const verticalOverlap = baselineTop < quickRect.bottom + gap && baselineBottom > quickRect.top - gap;
+        if (horizontalOverlap && verticalOverlap && quickRect.width > 0 && quickRect.height > 0) {
+            lift = Math.max(0, baselineBottom - quickRect.top + gap);
+            // Keep the launcher visible when the mobile keyboard reduces the viewport.
+            const viewportTop = window.visualViewport?.offsetTop ?? 0;
+            lift = Math.min(lift, Math.max(0, baselineTop - viewportTop - 8));
+        }
+    }
+    lift = Math.ceil(lift);
+    if (lift !== launcherLift) {
+        shell.style.setProperty('transform', lift ? `translateY(-${lift}px)` : 'none', 'important');
+        launcherLift = lift;
+        schedulePanelPosition();
+    }
+}
+
+function scheduleLauncherPosition() {
+    if (launcherFrame || !showLauncher) return;
+    launcherFrame = requestAnimationFrame(() => {
+        launcherFrame = 0;
+        observeLauncherLayout();
+        positionLauncher();
+    });
+}
+
 function close() {
     document.querySelector('#qrp-panel')?.remove();
+    if (panelFrame) cancelAnimationFrame(panelFrame);
+    panelFrame = 0;
     setLauncherExpanded(false);
 }
 
@@ -43,6 +164,7 @@ function open() {
     panel.dataset.style = style;
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Выбрать отвечающего');
+    panel.style.visibility = 'hidden';
     const head = document.createElement('div');
     head.className = 'qrp-head';
     const title = document.createElement('span');
@@ -111,7 +233,9 @@ function open() {
         row.append(img, name, play, eye);
         panel.append(row);
     }
-    shell.prepend(panel);
+    // Body portal avoids clipping/overlap from White Dome and similar themes.
+    document.body.append(panel);
+    positionPanel();
     setLauncherExpanded(true);
 }
 
@@ -136,6 +260,8 @@ function mountLauncher() {
 
     if (!showLauncher) {
         shell.querySelector('#qrp-launcher')?.remove();
+        shell.style.removeProperty('transform');
+        launcherLift = 0;
         return;
     }
 
@@ -145,7 +271,7 @@ function mountLauncher() {
         launcher = document.createElement('button');
         launcher.id = 'qrp-launcher';
         launcher.type = 'button';
-        launcher.title = 'Выбрать отвечающего · v0.3.12';
+        launcher.title = 'Выбрать отвечающего · v0.3.13';
         launcher.setAttribute('aria-label', 'Выбрать отвечающего');
         launcher.setAttribute('aria-expanded', 'false');
         launcher.addEventListener('click', event => {
@@ -172,7 +298,9 @@ function mountLauncher() {
         arrow.className = 'qrp-launcher-arrow';
         arrow.innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
         launcher.append(avatars, arrow);
+        setLauncherExpanded(Boolean(document.querySelector('#qrp-panel')));
     }
+    scheduleLauncherPosition();
 }
 
 function attach(button) {
@@ -252,6 +380,17 @@ document.addEventListener('keydown', e => {
     close();
     closeSettings();
 });
+// Fixed menu follows its button when the mobile keyboard, viewport, or scroll moves.
+for (const eventName of ['resize', 'scroll']) {
+    window.addEventListener(eventName, () => {
+        scheduleLauncherPosition();
+        schedulePanelPosition();
+    }, { passive: true, capture: eventName === 'scroll' });
+    window.visualViewport?.addEventListener(eventName, () => {
+        scheduleLauncherPosition();
+        schedulePanelPosition();
+    }, { passive: true });
+}
 new MutationObserver(() => {
     const button = document.querySelector('#send_but');
     if (button) attach(button);
@@ -281,7 +420,7 @@ function openSettings() {
     const header = document.createElement('div');
     header.className = 'qrp-settings-header';
     const title = document.createElement('strong');
-    title.textContent = 'Выбор отвечающего · 0.3.12';
+    title.textContent = 'Выбор отвечающего · 0.3.13';
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className = 'qrp-settings-close';
