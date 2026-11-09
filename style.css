@@ -75,3 +75,7 @@
 #qrp-settings-dialog { box-shadow:0 12px 40px #0007!important; }
 #qrp-settings-dialog select { border-radius:8px!important; }
 #qrp-settings-dialog .qrp-settings-close { border-radius:50%!important; }
+
+/* Beta 2: launcher moves independently of absolute Quick Replies without
+   changing the user's theme or the quick-reply buttons themselves. */
+#qrp-shell { will-change:transform; }

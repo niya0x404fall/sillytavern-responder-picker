@@ -76,6 +76,75 @@ function schedulePanelPosition() {
     });
 }
 
+// White Dome positions Quick Replies absolutely ABOVE the input form.
+// Because our launcher is a sibling immediately before that form, their visual
+// rectangles can overlap even though neither component is broken. Measure the
+// *actual* Quick Replies bar and lift only the launcher when needed. Unlike a
+// fixed 60px CSS offset, this works with wrapped quick replies and font scaling.
+let launcherFrame = 0;
+let launcherLift = 0;
+const layoutObserved = new WeakSet();
+const launcherResizeObserver = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => scheduleLauncherPosition())
+    : null;
+
+function observeLauncherLayout() {
+    if (!launcherResizeObserver) return;
+    for (const element of [
+        document.querySelector('#qrp-launcher'),
+        document.querySelector('#qr--bar'),
+        document.querySelector('#send_form'),
+    ]) {
+        if (element && !layoutObserved.has(element)) {
+            layoutObserved.add(element);
+            launcherResizeObserver.observe(element);
+        }
+    }
+}
+
+function positionLauncher() {
+    const shell = document.querySelector('#qrp-shell');
+    const launcher = document.querySelector('#qrp-launcher');
+    if (!shell || !launcher || !showLauncher) {
+        launcherLift = 0;
+        return;
+    }
+    const quickBar = document.querySelector('#qr--bar');
+    let lift = 0;
+    if (quickBar && quickBar.getClientRects().length > 0) {
+        const quickRect = quickBar.getBoundingClientRect();
+        const buttonRect = launcher.getBoundingClientRect();
+        const gap = 9;
+        // Undo our previous transform in the measurements. Without this,
+        // recalculating the layout would alternate between two positions.
+        const baselineTop = buttonRect.top + launcherLift;
+        const baselineBottom = buttonRect.bottom + launcherLift;
+        const horizontalOverlap = buttonRect.left < quickRect.right && buttonRect.right > quickRect.left;
+        const verticalOverlap = baselineTop < quickRect.bottom + gap && baselineBottom > quickRect.top - gap;
+        if (horizontalOverlap && verticalOverlap && quickRect.width > 0 && quickRect.height > 0) {
+            lift = Math.max(0, baselineBottom - quickRect.top + gap);
+            // Keep the launcher visible when the mobile keyboard reduces the viewport.
+            const viewportTop = window.visualViewport?.offsetTop ?? 0;
+            lift = Math.min(lift, Math.max(0, baselineTop - viewportTop - 8));
+        }
+    }
+    lift = Math.ceil(lift);
+    if (lift !== launcherLift) {
+        shell.style.setProperty('transform', lift ? `translateY(-${lift}px)` : 'none', 'important');
+        launcherLift = lift;
+        schedulePanelPosition();
+    }
+}
+
+function scheduleLauncherPosition() {
+    if (launcherFrame || !showLauncher) return;
+    launcherFrame = requestAnimationFrame(() => {
+        launcherFrame = 0;
+        observeLauncherLayout();
+        positionLauncher();
+    });
+}
+
 function close() {
     document.querySelector('#qrp-panel')?.remove();
     if (panelFrame) cancelAnimationFrame(panelFrame);
@@ -191,6 +260,8 @@ function mountLauncher() {
 
     if (!showLauncher) {
         shell.querySelector('#qrp-launcher')?.remove();
+        shell.style.removeProperty('transform');
+        launcherLift = 0;
         return;
     }
 
@@ -200,7 +271,7 @@ function mountLauncher() {
         launcher = document.createElement('button');
         launcher.id = 'qrp-launcher';
         launcher.type = 'button';
-        launcher.title = 'Выбрать отвечающего · v0.3.13-beta.1';
+        launcher.title = 'Выбрать отвечающего · v0.3.13-beta.2';
         launcher.setAttribute('aria-label', 'Выбрать отвечающего');
         launcher.setAttribute('aria-expanded', 'false');
         launcher.addEventListener('click', event => {
@@ -229,6 +300,7 @@ function mountLauncher() {
         launcher.append(avatars, arrow);
         setLauncherExpanded(Boolean(document.querySelector('#qrp-panel')));
     }
+    scheduleLauncherPosition();
 }
 
 function attach(button) {
@@ -309,10 +381,16 @@ document.addEventListener('keydown', e => {
     closeSettings();
 });
 // Fixed menu follows its button when the mobile keyboard, viewport, or scroll moves.
-window.addEventListener('resize', schedulePanelPosition, { passive: true });
-window.addEventListener('scroll', schedulePanelPosition, { passive: true, capture: true });
-window.visualViewport?.addEventListener('resize', schedulePanelPosition, { passive: true });
-window.visualViewport?.addEventListener('scroll', schedulePanelPosition, { passive: true });
+for (const eventName of ['resize', 'scroll']) {
+    window.addEventListener(eventName, () => {
+        scheduleLauncherPosition();
+        schedulePanelPosition();
+    }, { passive: true, capture: eventName === 'scroll' });
+    window.visualViewport?.addEventListener(eventName, () => {
+        scheduleLauncherPosition();
+        schedulePanelPosition();
+    }, { passive: true });
+}
 new MutationObserver(() => {
     const button = document.querySelector('#send_but');
     if (button) attach(button);
@@ -342,7 +420,7 @@ function openSettings() {
     const header = document.createElement('div');
     header.className = 'qrp-settings-header';
     const title = document.createElement('strong');
-    title.textContent = 'Выбор отвечающего · 0.3.13 Beta 1';
+    title.textContent = 'Выбор отвечающего · 0.3.13 Beta 2';
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className = 'qrp-settings-close';

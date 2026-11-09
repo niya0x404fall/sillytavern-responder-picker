@@ -3,7 +3,7 @@
   "name": "QuickReplyPickerBeta",
   "description": "Бета: совместимость кнопки выбора отвечающего с темами и мобильной вёрсткой.",
   "author": "Niya custom",
-  "version": "0.3.13-beta.1",
+  "version": "0.3.13-beta.2",
   "js": "index.js",
   "css": "style.css",
   "requires": []
